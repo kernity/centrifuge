@@ -24,10 +24,18 @@ class Storage(BaseStorage):
 
     def __init__(self, *args, **kwargs):
         super(Storage, self).__init__(*args, **kwargs)
-        self.data = json.load(open(self.options.file, 'r'))
+        self.data = None
+        self.load()
 
     def connect(self, callback=None):
         callback()
+
+    def load(self):
+        self.data = json.load(open(self.options.file, 'r'))
+        print self.data
+
+    def dump(self):
+        json.dump(self.data, open(self.options.file, 'wb'))
 
     @coroutine
     def project_list(self):
@@ -42,49 +50,47 @@ class Storage(BaseStorage):
     @coroutine
     def project_create(self, secret_key, options, project_id=None):
 
-        to_insert = (
-            project_id or uuid.uuid4().hex,
-            secret_key,
-            json.dumps(options)
-        )
-
-        to_return = {
-            '_id': to_insert[0],
-            'secret_key': to_insert[1],
-            'options': to_insert[2]
-        }
-
         data = {
             "_id": project_id or uuid.uuid4().hex,
             'secret_key': secret_key,
         }
         data.update(options)
-        self.data["projects"].append(data)
-        raise Return(({}, None))
+        projects = self.data.get("projects", [])[:]
+        projects.append(data)
+        self.data["projects"] = projects
+
+        self.dump()
+
+        raise Return(({"_id": data["_id"], "secret_key": secret_key}, None))
 
     @coroutine
     def project_edit(self, project, options):
 
-        project_id = extract_obj_id(project),
-        for proj in self.data.get('projects', []):
-            if proj["_id"] == project_id:
-                proj.update(options)
+        project_id = extract_obj_id(project)
+        for obj in self.data.get('projects', []):
+            if obj["_id"] == project_id:
+                obj.update(options)
                 break
 
         to_return = {
             '_id': extract_obj_id(project),
             'options': options
         }
+
+        self.dump()
+
         raise Return((to_return, None))
 
     @coroutine
     def regenerate_project_secret_key(self, project, secret_key):
 
-        project_id = extract_obj_id(project),
+        project_id = extract_obj_id(project)
         for obj in self.data.get('projects', []):
             if obj["_id"] == project_id:
                 obj["secret_key"] = secret_key
                 break
+
+        self.dump()
 
         raise Return((secret_key, None))
 
@@ -106,34 +112,48 @@ class Storage(BaseStorage):
         if index_to_delete is not None:
             del projects[index_to_delete]
 
+        self.dump()
+
         raise Return((True, None))
 
     @coroutine
     def namespace_create(self, project, name, options, namespace_id=None):
 
-        to_return = {
-            '_id': namespace_id or uuid.uuid4().hex,
+        data = {
+            "_id": namespace_id or uuid.uuid4().hex,
             'project_id': extract_obj_id(project),
+            'name': name
+        }
+        data.update(options)
+        namespaces = self.data.get("namespaces", [])[:]
+        namespaces.append(data)
+        self.data["namespaces"] = namespaces
+
+        to_return = {
+            '_id': data["_id"],
+            'project_id': data["project_id"],
             'name': name,
-            'options': options
         }
 
-        data = {
-            '_id': namespace_id or uuid.uuid4().hex,
-            'project_id': extract_obj_id(project),
-            'name': name,
-        }
+        self.dump()
 
         raise Return((to_return, None))
 
     @coroutine
     def namespace_edit(self, namespace, name, options):
 
+        namespace_id = extract_obj_id(namespace)
+        for obj in self.data.get('namespaces', []):
+            if obj["_id"] == namespace_id:
+                obj["name"] = name
+                obj.update(options)
+                break
+
         to_return = {
-            '_id': extract_obj_id(namespace),
-            'name': name,
-            'options': options
+            '_id': namespace_id
         }
+
+        self.dump()
 
         raise Return((to_return, None))
 
@@ -151,5 +171,7 @@ class Storage(BaseStorage):
 
         if index_to_delete is not None:
             del namespaces[index_to_delete]
+
+        self.dump()
 
         raise Return((True, None))
