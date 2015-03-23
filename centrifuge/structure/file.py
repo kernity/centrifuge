@@ -60,6 +60,7 @@ class Storage(BaseStorage):
         }
         data.update(options)
         self.data["projects"].append(data)
+        raise Return(({}, None))
 
     @coroutine
     def project_edit(self, project, options):
@@ -123,21 +124,7 @@ class Storage(BaseStorage):
             'name': name,
         }
 
-        self.data["namespaces"]
-
-        to_insert = (
-            to_return['_id'], to_return['project_id'], name, json.dumps(options)
-        )
-
-        query = "INSERT INTO namespaces (_id, project_id, name, options) VALUES (?, ?, ?, ?)"
-
-        try:
-            self._cursor.execute(query, to_insert)
-        except Exception as e:
-            on_error(e)
-        else:
-            self._cursor.connection.commit()
-            raise Return((to_return, None))
+        raise Return((to_return, None))
 
     @coroutine
     def namespace_edit(self, namespace, name, options):
@@ -148,26 +135,21 @@ class Storage(BaseStorage):
             'options': options
         }
 
-        to_update = (name, json.dumps(options), extract_obj_id(namespace))
-
-        query = "UPDATE namespaces SET name=?, options=? WHERE _id=?"
-
-        try:
-            self._cursor.execute(query, to_update)
-        except Exception as e:
-            on_error(e)
-        else:
-            self._cursor.connection.commit()
-            raise Return((to_return, None))
+        raise Return((to_return, None))
 
     @coroutine
     def namespace_delete(self, namespace):
-        haystack = (extract_obj_id(namespace),)
-        query = "DELETE FROM namespaces WHERE _id=?"
-        try:
-            self._cursor.execute(query, haystack)
-        except Exception as e:
-            on_error(e)
-        else:
-            self._cursor.connection.commit()
-            raise Return((True, None))
+
+        namespace_id = extract_obj_id(namespace)
+        namespaces = self.data.get('namespaces', [])
+
+        index_to_delete = None
+        for index, obj in enumerate(namespaces):
+            if obj["_id"] == namespace_id:
+                index_to_delete = index
+                break
+
+        if index_to_delete is not None:
+            del namespaces[index_to_delete]
+
+        raise Return((True, None))
